@@ -160,8 +160,17 @@ vim.api.nvim_create_autocmd("FileType", {
 
 ## Configuration
 
+All configuration values are optional and provided here only for the reference
+
 ```lua
--- TODO:
+{
+	new_table = {
+		prompt = "Enter table size",
+		default_n_lines = 0,
+		max_width = 30,
+		max_height = 50,
+	},
+}
 ```
 
 ## License
