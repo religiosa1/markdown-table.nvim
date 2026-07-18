@@ -151,10 +151,11 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set({ "n" }, "<leader>jtp", function()
       MdTable.paste_column { paste_mode = "after", from_reg = "+" }
     end, {
+      buf = buf_id,
       desc = "Paste a markdown table column after",
     })
   end
-)
+})
 
 ```
 

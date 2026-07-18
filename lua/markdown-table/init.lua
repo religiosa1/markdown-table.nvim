@@ -8,7 +8,7 @@ function M.create_table()
 	local input_str = vim.fn.input({
 		prompt = opts.new_table.prompt,
 	})
-	if not input_str then
+	if not input_str or input_str == "" then
 		return
 	end
 	local x, y = CreateTable.tokenize_create_table_input(input_str)
