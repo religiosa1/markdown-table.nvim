@@ -1,6 +1,6 @@
 name: panvimdoc
 # Generates vimdoc out of readme on push to master.
-# To run locally with act, use makefile.
+# To run locally, use `make docs` (needs pandoc).
 on:
   push:
     branches: [master, main]
