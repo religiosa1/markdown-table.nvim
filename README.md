@@ -4,9 +4,9 @@ Neovim plugin for some actions for editing markdown tables.
 
 It provides actions to:
 
-- Delete/cut columns
-- Paste column
-- Add columns (ignoring the registers)
+- Delete columns, optionally cutting them into a register
+- Paste columns from a register (auto-expanded to the target table's size)
+- Add blank columns
 - Generate a table stub of provided width/height
 
 It only provides actions for the tables editing, nothing else. All actions can
@@ -29,6 +29,53 @@ don't see it's worth it. Just do `dd`/`o`/`O`.
 This plugin uses treesitter to get the position of a nearest table in a
 markdown document. The rest of logic is basically splitting/joining by the `|`
 character. There's some limited support for escaped `\|` in cells.
+
+### Registers
+
+Cut columns are stored in a register as a borderless sub-table, one row per line.
+
+This allows you to move the columns around, e.g. if you want to swap to columns
+around, you can do "delete" and "paste after", mirroring `x` and `p` for
+characters in vim itself.
+
+Cutting the middle column of
+
+```
+| Header 1 | Header 2 | Header 3 |
+| -------- | -------- | -------- |
+| Foo      | Bar      | Biz      |
+```
+
+puts this into the register:
+
+```
+ Header 2
+ --------
+ Bar
+```
+
+Cutting last two columns puts this:
+
+```
+ Header 2 | Header 3
+ -------- | --------
+ Bar      | Biz
+```
+
+Pasting splits it back on `|` and inserts it as column(s), expanding cells to the
+target table's height and width. So you can cut a column from one table and paste
+it into another of a different size.
+
+Both `delete_column`'s `to_reg` and `paste_column`'s `from_reg` accept:
+
+- a register name (`"+"`, `'"'`, `"z"`, ...)
+- a list of register names (`{ '"', "+" }`) — `delete_column` writes to all of them
+- `true` — route by `'clipboard'`: always the unnamed `"`, plus `+` when
+  `unnamedplus` is set and `*` when `unnamed` is set. This is the recommended
+  value: a cut then reads back from wherever your `p` pastes from, so it works
+  whether or not you have `clipboard=unnamedplus`.
+
+Omitting `to_reg` deletes without cutting; omitting `from_reg` adds a blank column.
 
 ## Installation
 
@@ -53,10 +100,10 @@ character. There's some limited support for escaped `\|` in cells.
     {
       "<leader>jtd",
       function()
-        require("markdown-table").delete_column { to_reg = "+" }
+        require("markdown-table").delete_column { to_reg = true }
       end,
       mode = { "n", "x" },
-      desc = "Delete a markdown table column",
+      desc = "Cut a markdown table column",
     },
     {
       "<leader>jtD",
@@ -85,7 +132,7 @@ character. There's some limited support for escaped `\|` in cells.
     {
       "<leader>jtP",
       function()
-        require("markdown-table").paste_column { paste_mode = "before", from_reg = "+" }
+        require("markdown-table").paste_column { paste_mode = "before", from_reg = true }
       end,
       mode = { "n" },
       desc = "Paste a markdown table column before",
@@ -93,7 +140,7 @@ character. There's some limited support for escaped `\|` in cells.
     {
       "<leader>jtp",
       function()
-        require("markdown-table").paste_column { paste_mode = "after", from_reg = "+" }
+        require("markdown-table").paste_column { paste_mode = "after", from_reg = true }
       end,
       mode = { "n" },
       desc = "Paste a markdown table column after",
@@ -143,13 +190,13 @@ vim.api.nvim_create_autocmd("FileType", {
       desc = "Add a markdown table column after",
     })
     vim.keymap.set({ "n" }, "<leader>jtP", function()
-      MdTable.paste_column { paste_mode = "before", from_reg = "+" }
+      MdTable.paste_column { paste_mode = "before", from_reg = true }
     end, {
       buf = buf_id,
       desc = "Paste a markdown table column before",
     })
     vim.keymap.set({ "n" }, "<leader>jtp", function()
-      MdTable.paste_column { paste_mode = "after", from_reg = "+" }
+      MdTable.paste_column { paste_mode = "after", from_reg = true }
     end, {
       buf = buf_id,
       desc = "Paste a markdown table column after",

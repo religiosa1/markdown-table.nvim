@@ -19,7 +19,7 @@ end
 ---@class PasteColumnArgs
 ---@field paste_mode? "before" | "after" paste the column before or after current column, default to after
 ---@field search_mode? SearchMode: where to search for closes table. If not provided, inferred from paste_mode
----@field from_reg? string -- TODO: register to paste from, nil to avoid pasting
+---@field from_reg? string | string[] | boolean register to paste columns from. A name, list of names, or `true` to route by 'clipboard'. nil adds a blank column
 
 ---Paste or add column
 ---@param args? PasteColumnArgs
@@ -49,9 +49,14 @@ function M.paste_column(args)
 	if is_paste_after and column_idx ~= math.huge then
 		column_idx = column_idx + 1
 	end
+	local columns
+	if args.from_reg then
+		columns = require("markdown-table.registers").cols_from_reg(args.from_reg)
+	end
 	EditTable.add_column({
 		table_pos = table_pos,
 		column_idx = column_idx,
+		columns = columns,
 	})
 end
 

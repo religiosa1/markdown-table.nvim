@@ -85,4 +85,23 @@ function M.create_table_lines(x, y, opts)
 	return lines
 end
 
+---@class CreateColumnConfig
+---@field header? string header text for a generated column, default "Header"
+
+--- Generate a single blank column (column-major cells) for a table of `nrows` lines.
+--- Only carries the header text and blanks; width and separator are finalized by the
+--- caller's column normalization.
+---@param config? CreateColumnConfig
+---@param nrows integer number of lines in the target table (header + separator + body)
+---@return string[] column-major cells
+function M.create_column(config, nrows)
+	config = config or {}
+	local header = config.header or "Header"
+	local col = { " " .. header .. " " }
+	for r = 2, nrows do
+		col[r] = ""
+	end
+	return col
+end
+
 return M

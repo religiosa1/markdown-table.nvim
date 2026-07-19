@@ -1,6 +1,38 @@
 local TableParser = require("markdown-table.parser")
+local CreateTable = require("markdown-table.create-table")
 
 local M = {}
+
+local MIN_COL_WIDTH = 5
+
+--- Normalize columns (column-major) to the target table's height and a uniform
+--- per-column width: missing body cells are padded blank, overflow ignored, row 2
+--- becomes a separator. Keeps a pasted or generated column aligned with the table.
+--- @param columns string[][]
+--- @param nrows integer target table line count (header + separator + body)
+--- @return string[][]
+local function normalize_columns(columns, nrows)
+	local out = {}
+	for i, col in ipairs(columns) do
+		local sized = {}
+		for r = 1, nrows do -- height: exactly nrows cells
+			sized[r] = col[r] or ""
+		end
+		local width = MIN_COL_WIDTH -- width: uniform, driven by the widest cell
+		for r = 1, nrows do
+			width = math.max(width, #sized[r]) -- TODO byte length; wrong for multibyte cells
+		end
+		for r = 1, nrows do
+			if r == 2 then -- header separator
+				sized[r] = " " .. string.rep("-", width - 2) .. " "
+			else
+				sized[r] = sized[r] .. string.rep(" ", width - #sized[r])
+			end
+		end
+		out[i] = sized
+	end
+	return out
+end
 
 local function read_buffer_line(buf_id, line_num)
 	return vim.api.nvim_buf_get_lines(buf_id, line_num - 1, line_num, false)[1]
@@ -148,31 +180,35 @@ end
 
 ---@class AddColumnArgs
 ---@field table_pos TablePosition position of a md table in a buffer
----@field column_idx integer index of a column to add
+---@field column_idx integer index at which to insert
+---@field columns? string[][] columns to insert (column-major); a blank one is generated if nil/empty
+---@field config? CreateColumnConfig config for the generated blank column
 
---- Add a column to a markdown table
+--- Insert one or more columns into a markdown table. Columns are normalized to the
+--- table's height/width, so a pasted column that's too short is expanded automatically.
 --- @param args AddColumnArgs
 function M.add_column(args)
-	local header_content = "Header"
 	local table_pos = args.table_pos
 	local lines = vim.api.nvim_buf_get_lines(0, table_pos.line_start - 1, table_pos.line_end, false)
+	local nrows = #lines
+	if nrows == 0 then
+		return
+	end
 
-	local width = #header_content + 2
+	local columns = args.columns
+	if not columns or #columns == 0 then
+		columns = { CreateTable.create_column(args.config, nrows) }
+	end
+	columns = normalize_columns(columns, nrows)
 
 	for line_n, line in ipairs(lines) do
 		local cells = TableParser.split_row(line)
 		if #cells >= 2 then
-			-- deducting 1 garbage cols in the math.min clamp (one because we add another one afterwards)
+			-- clamp into the inner-column range; +1 skips the left extra (cells[1])
 			local at = math.max(1, math.min(#cells - 1, args.column_idx)) + 1
-			local content
-			if line_n == 1 then -- header line
-				content = " " .. header_content .. string.rep(" ", width - 1 - #header_content)
-			elseif line_n == 2 then -- header separator
-				content = " " .. string.rep("-", width - 2) .. " "
-			else
-				content = string.rep(" ", width)
+			for k, col in ipairs(columns) do
+				table.insert(cells, at + k - 1, col[line_n])
 			end
-			table.insert(cells, at, content)
 			lines[line_n] = TableParser.join_row(cells)
 		end
 	end
@@ -192,7 +228,7 @@ function M.delete_column(opts)
 	local table_pos = opts.table_pos
 	local lines = vim.api.nvim_buf_get_lines(0, table_pos.line_start - 1, table_pos.line_end, false)
 	if #lines == 0 then
-		return
+		return {}
 	end
 
 	local columns = vim.iter(lines)
