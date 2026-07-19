@@ -1,0 +1,253 @@
+*markdown-table.txt*
+                             For Neovim >= 0.10.0    Last change: 2026 July 19
+
+==============================================================================
+Table of Contents                           *markdown-table-table-of-contents*
+
+1. Markdown Table                              |markdown-table-markdown-table|
+  - How it works?                |markdown-table-markdown-table-how-it-works?|
+  - Installation                  |markdown-table-markdown-table-installation|
+  - Configuration                |markdown-table-markdown-table-configuration|
+  - License                            |markdown-table-markdown-table-license|
+
+==============================================================================
+1. Markdown Table                              *markdown-table-markdown-table*
+
+Neovim plugin for some actions for editing markdown tables.
+
+It provides actions to:
+
+- Delete columns, optionally cutting them into a register
+- Paste columns from a register (auto-expanded to the target table’s size)
+- Add blank columns
+- Generate a table stub of provided width/height
+
+It only provides actions for the tables editing, nothing else. All actions can
+be undone.
+
+For the full smorgasbord of various markdown editing actions (including table
+edits) look at markdown-plus
+<https://github.com/YousefHadder/markdown-plus.nvim>.
+
+I prefer my plugins to be smaller in scope, and I don’t need most of the
+features of that plugin, and want to avoid potential interactions with other
+rendering and editing plugins, hence this.
+
+
+WHY NO ADD/DELETE ROWS?
+
+Because it’s basically just add or delete a line and a bunch of `|` inside, I
+don’t see it’s worth it. Just do `dd`/`o`/`O`.
+
+
+HOW IT WORKS?                    *markdown-table-markdown-table-how-it-works?*
+
+This plugin uses treesitter to get the position of a nearest table in a
+markdown document. The rest of logic is basically splitting/joining by the `|`
+character. There’s some limited support for escaped `\|` in cells.
+
+
+REGISTERS ~
+
+Cut columns are stored in a register as a borderless sub-table, one row per
+line.
+
+This allows you to move the columns around, e.g. if you want to swap to columns
+around, you can do "delete" and "paste after", mirroring `x` and `p` for
+characters in vim itself.
+
+Cutting the middle column of
+
+>
+    | Header 1 | Header 2 | Header 3 |
+    | -------- | -------- | -------- |
+    | Foo      | Bar      | Biz      |
+<
+
+puts this into the register:
+
+>
+     Header 2
+     --------
+     Bar
+<
+
+Cutting last two columns puts this:
+
+>
+     Header 2 | Header 3
+     -------- | --------
+     Bar      | Biz
+<
+
+Pasting splits it back on `|` and inserts it as column(s), expanding cells to
+the target table’s height and width. So you can cut a column from one table
+and paste it into another of a different size.
+
+Both `delete_column`’s `to_reg` and `paste_column`’s `from_reg` accept:
+
+- a register name (`"+"`, `'"'`, `"z"`, …)
+- a list of register names (`{ '"', "+" }`) — `delete_column` writes to all of them
+- `true` — route by `'clipboard'`: always the unnamed `"`, plus `+` when
+    `unnamedplus` is set and `*` when `unnamed` is set. This is the recommended
+    value: a cut then reads back from wherever your `p` pastes from, so it works
+    whether or not you have `clipboard=unnamedplus`.
+
+Omitting `to_reg` deletes without cutting; omitting `from_reg` adds a blank
+column.
+
+
+INSTALLATION                      *markdown-table-markdown-table-installation*
+
+
+LAZY: ~
+
+(require is inside of handler, to ensure proper lazy loading)
+
+>lua
+    {
+      "religiosa1/markdown-table.nvim",
+      lazy = true,
+      ft = { "markdown", "text", "plaintext" },
+      keys = {
+        {
+          "<leader>jtt",
+          function()
+            require("markdown-table").create_table()
+          end,
+          mode = { "n" },
+          desc = "Create a markdown table",
+        },
+        {
+          "<leader>jtd",
+          function()
+            require("markdown-table").delete_column { to_reg = true }
+          end,
+          mode = { "n", "x" },
+          desc = "Cut a markdown table column",
+        },
+        {
+          "<leader>jtD",
+          function()
+            require("markdown-table").delete_column()
+          end,
+          mode = { "n", "x" },
+          desc = "Delete a markdown table column without cutting",
+        },
+        {
+          "<leader>jtA",
+          function()
+            require("markdown-table").paste_column { paste_mode = "before" }
+          end,
+          mode = { "n" },
+          desc = "Add a markdown table column before",
+        },
+        {
+          "<leader>jta",
+          function()
+            require("markdown-table").paste_column { paste_mode = "after" }
+          end,
+          mode = { "n" },
+          desc = "Add a markdown table column after",
+        },
+        {
+          "<leader>jtP",
+          function()
+            require("markdown-table").paste_column { paste_mode = "before", from_reg = true }
+          end,
+          mode = { "n" },
+          desc = "Paste a markdown table column before",
+        },
+        {
+          "<leader>jtp",
+          function()
+            require("markdown-table").paste_column { paste_mode = "after", from_reg = true }
+          end,
+          mode = { "n" },
+          desc = "Paste a markdown table column after",
+        },
+      },
+    }
+<
+
+
+NVIM.PACK: ~
+
+>lua
+    
+    vim.pack.add { "religiosa1/markdown-table.nvim" }
+    local MdTable = require("markdown-table")
+    MdTable.setup {
+      -- your config opts here
+    }
+    vim.api.nvim_create_autocmd("FileType", {
+      desc = "markdown-table bindings",
+      pattern = { "markdown", "text", "plaintext" },
+      callback = function(args)
+        local buf_id = args.buf
+    
+        vim.keymap.set({ "n" }, "<leader>jtt", function()
+          MdTable.create_table()
+        end, {
+          buf = buf_id,
+          desc = "Create a markdown table",
+        })
+    
+        vim.keymap.set({ "n", "x" }, "<leader>jtD", function()
+          MdTable.delete_column()
+        end, {
+          buf = buf_id,
+          desc = "Delete a markdown table column without cutting",
+        })
+        vim.keymap.set({ "n" }, "<leader>jtA", function()
+          MdTable.paste_column { paste_mode = "before" }
+        end, {
+          buf = buf_id,
+          desc = "Add a markdown table column before",
+        })
+        vim.keymap.set({ "n" }, "<leader>jta", function()
+          MdTable.paste_column { paste_mode = "after" }
+        end, {
+          buf = buf_id,
+          desc = "Add a markdown table column after",
+        })
+        vim.keymap.set({ "n" }, "<leader>jtP", function()
+          MdTable.paste_column { paste_mode = "before", from_reg = true }
+        end, {
+          buf = buf_id,
+          desc = "Paste a markdown table column before",
+        })
+        vim.keymap.set({ "n" }, "<leader>jtp", function()
+          MdTable.paste_column { paste_mode = "after", from_reg = true }
+        end, {
+          buf = buf_id,
+          desc = "Paste a markdown table column after",
+        })
+      end
+    })
+<
+
+
+CONFIGURATION                    *markdown-table-markdown-table-configuration*
+
+All configuration values are optional and provided here only for the reference
+
+>lua
+    {
+        new_table = {
+            prompt = "Enter table size",
+            default_n_lines = 0,
+            max_width = 30,
+            max_height = 50,
+        },
+    }
+<
+
+
+LICENSE                                *markdown-table-markdown-table-license*
+
+markdown-table.nvim is MIT licensed.
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:
