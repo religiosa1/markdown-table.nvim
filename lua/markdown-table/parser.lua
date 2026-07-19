@@ -36,11 +36,48 @@ function M.split_row(line)
 	return cells
 end
 
---- Rebuild a bordered row from its outer segments and inner columns
+--- The inner columns of a bordered row (`split_row` minus the outer extras).
+--- @param line string
+--- @return string[]
+function M.split_inner(line)
+	local cells = M.split_row(line)
+	return { unpack(cells, 2, #cells - 1) }
+end
+
+--- Join cells with `|`. Inner cells only yields a borderless row; a full `split_row`
+--- list (empty outer extras included) yields a bordered row. Same op either way, so a
+--- borderless register block and a real table row can't drift apart.
+--- @param cells string[]
+--- @return string
+function M.join_inner(cells)
+	return table.concat(cells, "|")
+end
+
+-- This is literally the same thing, but just keeping it here for semantic difference
+--
+--- Rebuild a bordered row from a full `split_row` list (outer extras + inner columns).
 --- @param cells string[] cells, as split_row returns it - with left and right extras
 --- @return string
-function M.join_row(cells)
-	return table.concat(cells, "|")
+M.join_row = M.join_inner
+
+--- Pluck a range of inner columns from already-split rows into a column-major 2d list.
+--- `result[i]` is the i-th plucked column: its cell for every input row (header,
+--- separator, body). Serialization to/from a register lives in the `registers` module.
+--- @param rows string[][] each element is a `split_row` result for one line
+--- @param from integer 1-based inner column index (inclusive)
+--- @param to integer 1-based inner column index (inclusive)
+--- @return string[][] column-major cells
+function M.pluck_columns(rows, from, to)
+	local columns = {}
+	for _, cells in ipairs(rows) do
+		for c = from, to do
+			local col = c - from + 1
+			columns[col] = columns[col] or {}
+			-- inner column c lives at cells[c + 1] (cells[1] is the left extra)
+			columns[col][#columns[col] + 1] = cells[c + 1] or ""
+		end
+	end
+	return columns
 end
 
 return M

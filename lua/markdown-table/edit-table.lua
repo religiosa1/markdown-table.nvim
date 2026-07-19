@@ -187,6 +187,7 @@ end
 
 --- Delete a column or multiple columns in a markdown table
 --- @param opts DeleteColumnsArgs
+--- @return string[][] deleted columns, column-major (see parser.pluck_columns)
 function M.delete_column(opts)
 	local table_pos = opts.table_pos
 	local lines = vim.api.nvim_buf_get_lines(0, table_pos.line_start - 1, table_pos.line_end, false)
@@ -212,6 +213,9 @@ function M.delete_column(opts)
 		col_idx, end_col_idx = end_col_idx, col_idx
 	end
 
+	-- pluck before the loop below mutates `columns` in place
+	local deleted = TableParser.pluck_columns(columns, col_idx, end_col_idx)
+
 	for idx, cells in ipairs(columns) do
 		-- calling remove multiple times for each column to remove, but always providing
 		-- the first col idx and just shifting the rest of the table
@@ -227,6 +231,7 @@ function M.delete_column(opts)
 	end
 
 	vim.api.nvim_buf_set_lines(0, table_pos.line_start - 1, table_pos.line_end, false, lines)
+	return deleted
 end
 
 --- check if provided position is inside table position

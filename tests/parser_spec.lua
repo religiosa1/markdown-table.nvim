@@ -61,3 +61,52 @@ describe("parser split_row/join_row round-trip", function()
 		assert.equals([[| a\|b | c |]], roundtrip([[| a\|b | c |]]))
 	end)
 end)
+
+describe("parser.split_inner", function()
+	it("returns only the inner columns of a bordered row", function()
+		assert.same({ " a ", " b " }, parser.split_inner("| a | b |"))
+	end)
+
+	it("drops leading indentation with the outer extras", function()
+		assert.same({ " a ", " b " }, parser.split_inner("   | a | b |"))
+	end)
+end)
+
+describe("parser.join_inner", function()
+	it("joins cells borderless, no outer pipes", function()
+		assert.equals(" a | b ", parser.join_inner({ " a ", " b " }))
+	end)
+
+	it("is the same op as join_row", function()
+		assert.equals(parser.join_inner, parser.join_row)
+	end)
+end)
+
+describe("parser.pluck_columns", function()
+	-- a table's rows, already run through split_row
+	local rows = {
+		parser.split_row("| Header 1 | Header 2 | Header 3 |"),
+		parser.split_row("| -------- | -------- | -------- |"),
+		parser.split_row("| Foo      | Bar      | Biz      |"),
+		parser.split_row("| Lorus    | Ipsum    | Blah     |"),
+	}
+
+	it("plucks a single column, column-major", function()
+		assert.same({
+			{ " Header 2 ", " -------- ", " Bar      ", " Ipsum    " },
+		}, parser.pluck_columns(rows, 2, 2))
+	end)
+
+	it("plucks a range as one entry per column", function()
+		assert.same({
+			{ " Header 2 ", " -------- ", " Bar      ", " Ipsum    " },
+			{ " Header 3 ", " -------- ", " Biz      ", " Blah     " },
+		}, parser.pluck_columns(rows, 2, 3))
+	end)
+
+	it("fills cells past a row's width with empty strings", function()
+		local ragged = { parser.split_row("| a |") } -- one real column
+		-- column 1 -> " a ", column 2 -> the right extra "" (range clamped by caller normally)
+		assert.same({ { " a " }, { "" } }, parser.pluck_columns(ragged, 1, 2))
+	end)
+end)

@@ -16,13 +16,13 @@ function M.create_table()
 	vim.api.nvim_put(lines, "l", true, false)
 end
 
----@class AddColumnArgs
+---@class PasteColumnArgs
 ---@field paste_mode? "before" | "after" paste the column before or after current column, default to after
 ---@field search_mode? SearchMode: where to search for closes table. If not provided, inferred from paste_mode
 ---@field from_reg? string -- TODO: register to paste from, nil to avoid pasting
 
 ---Paste or add column
----@param args? AddColumnArgs
+---@param args? PasteColumnArgs
 function M.paste_column(args)
 	args = args or {}
 	local is_paste_after = args.paste_mode ~= "before"
@@ -57,8 +57,12 @@ end
 
 ---@class DeleteColumnArgs
 ---@field search_mode? SearchMode: where to search for closes table. If not provided, inferred from paste_mode
----@field to_reg? string -- TODO: register to yank into, nil to avoid pasting
-function M.delete_column()
+---@field to_reg? string | string[] | boolean register(s) to yank the removed columns into. A name, a list of names, or `true` to route by 'clipboard'. nil to skip
+
+---Delete (optionally cut into a register) the column(s) under the cursor/selection
+---@param args? DeleteColumnArgs
+function M.delete_column(args)
+	args = args or {}
 	local cursors = EditTable.get_start_stop_cursors_pos()
 
 	local table_pos = EditTable.find_closest_markdown_table({
@@ -80,11 +84,14 @@ function M.delete_column()
 			cursor_pos = cursors.other_end,
 		})
 	end
-	EditTable.delete_column({
+	local deleted = EditTable.delete_column({
 		table_pos = table_pos,
 		column_idx = current_column,
 		to_column_idx = end_column or current_column,
 	})
+	if args.to_reg then
+		require("markdown-table.registers").cols_to_reg(deleted, args.to_reg)
+	end
 end
 
 ---MarkdownTable plugin initializer
