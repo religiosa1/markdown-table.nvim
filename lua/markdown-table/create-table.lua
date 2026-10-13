@@ -1,3 +1,5 @@
+local TableParser = require("markdown-table.parser")
+
 local M = {}
 
 ---@alias HeaderFormat string | fun(idx: integer): string format string (`%d` is the column index) or a function
@@ -18,10 +20,7 @@ end
 function M.tokenize_create_table_input(input)
 	local values = {}
 	for token in input:gmatch("[0-9]+") do
-		local num = tonumber(token)
-		if num ~= nil then
-			table.insert(values, num)
-		end
+		table.insert(values, tonumber(token))
 		if #values == 2 then
 			break
 		end
@@ -37,7 +36,6 @@ end
 function M.create_table_lines(x, y, opts)
 	opts = opts or {}
 	x = x or 1
-	local header = opts.header or "Header%d"
 
 	if x <= 0 then
 		return {}
@@ -47,37 +45,20 @@ function M.create_table_lines(x, y, opts)
 		x = opts.max_width --[[@as integer]]
 	end
 
-	local lines = {}
-	-- header first; widths vary per column (Header9 vs Header10, custom formats)
-	local headers, delims, blanks = {}, {}, {}
-	for i = 1, x do
-		local cont = format_header(header, i)
-		local width = math.max(3, #cont) -- separator needs at least 3 dashes
-		headers[i] = cont .. string.rep(" ", width - #cont)
-		delims[i] = string.rep("-", width)
-		blanks[i] = string.rep(" ", width)
-	end
-	table.insert(lines, "| " .. table.concat(headers, " | ") .. " |")
-	table.insert(lines, "| " .. table.concat(delims, " | ") .. " |")
-
 	if y == nil then
 		y = opts.default_n_lines
 	end
-
-	if not y or y < 0 then
-		return lines
-	end
-
+	y = math.max(0, y or 0)
 	if opts.max_height and y > opts.max_height then
 		y = opts.max_height
 	end
 
-	-- the main lines now
-	local row = "| " .. table.concat(blanks, " | ") .. " |"
-	for _ = 1, y do
-		table.insert(lines, row)
+	local column_config = { header = opts.header or "Header%d" }
+	local columns = {}
+	for i = 1, x do
+		columns[i] = TableParser.align_column(M.create_column(column_config, y + 2, i))
 	end
-	return lines
+	return TableParser.render_columns(columns)
 end
 
 ---@class CreateColumnConfig

@@ -4,7 +4,7 @@ local M = {}
 
 ---Leave visual mode like native `y`/`d` do; `gv` reselects. Call after reading the selection.
 local function exit_visual()
-	if vim.fn.mode():match("^[vV\22]") then
+	if EditTable.is_visual_mode() then
 		vim.cmd("normal! \27")
 	end
 end
@@ -15,7 +15,7 @@ function M.create_table()
 	local input_str = vim.fn.input({
 		prompt = opts.new_table.prompt,
 	})
-	if not input_str or input_str == "" then
+	if input_str == "" then
 		return
 	end
 	local x, y = CreateTable.tokenize_create_table_input(input_str)
@@ -101,7 +101,7 @@ function M.delete_column(args)
 	local deleted = EditTable.delete_column({
 		table_pos = table_pos,
 		column_idx = current_column,
-		to_column_idx = end_column or current_column,
+		to_column_idx = end_column,
 	})
 	if args.to_reg then
 		require("markdown-table.registers").cols_to_reg(deleted, args.to_reg)
@@ -127,20 +127,25 @@ local function get_convert_range()
 		return table_pos.line_start, table_pos.line_end
 	end
 
-	local function is_tsv(lnum)
-		return vim.fn.getline(lnum):find("\t", 1, true) ~= nil
+	local function is_tsv(line)
+		return line:find("\t", 1, true) ~= nil
 	end
-	if not is_tsv(cur) then
+	if not is_tsv(vim.fn.getline(cur)) then
 		return nil
 	end
-	local first, last = cur, cur
-	while is_tsv(first - 1) do
-		first = first - 1
+	return EditTable.grow_range(cur, cur, is_tsv)
+end
+
+---Leave visual mode and read the lines to convert (see get_convert_range)
+---@return string[]?, integer?, integer? lines, 1-based start and end lines
+local function read_convert_lines()
+	local first, last = get_convert_range()
+	exit_visual()
+	if not first then
+		vim.notify("No markdown table or TSV found")
+		return nil
 	end
-	while is_tsv(last + 1) do
-		last = last + 1
-	end
-	return first, last
+	return vim.api.nvim_buf_get_lines(0, first - 1, last, false), first, last
 end
 
 ---Convert lines between a markdown table and TSV
@@ -154,13 +159,10 @@ end
 ---Convert the table under the cursor/selection between markdown and TSV, in place
 ---@param args? ConvertOpts
 function M.convert_table(args)
-	local first, last = get_convert_range()
-	exit_visual()
-	if not first then
-		vim.notify("No markdown table or TSV found")
+	local lines, first, last = read_convert_lines()
+	if not lines then
 		return
 	end
-	local lines = vim.api.nvim_buf_get_lines(0, first - 1, last, false)
 	vim.api.nvim_buf_set_lines(0, first - 1, last, false, M.convert_lines(lines, args))
 end
 
@@ -168,13 +170,10 @@ end
 ---@param args? YankConvertedArgs
 function M.yank_converted(args)
 	args = args or {}
-	local first, last = get_convert_range()
-	exit_visual()
-	if not first then
-		vim.notify("No markdown table or TSV found")
+	local lines = read_convert_lines()
+	if not lines then
 		return
 	end
-	local lines = vim.api.nvim_buf_get_lines(0, first - 1, last, false)
 	local direction = require("markdown-table.tsv").resolve_direction(lines, args.direction)
 	local converted = M.convert_lines(lines, { direction = direction, skip_header = args.skip_header })
 	require("markdown-table.registers").lines_to_reg(converted, args.to_reg or true)

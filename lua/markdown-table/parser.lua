@@ -60,6 +60,47 @@ end
 --- @return string
 M.join_row = M.join_inner
 
+--- Align one column (column-major, header first): trim every cell and pad it to the
+--- column's display width; row 2 becomes the header separator. The single place that
+--- decides cell width, so created, converted and inserted columns line up the same way.
+--- @param cells string[]
+--- @return string[] cells as `" content "`, ready for join_row
+function M.align_column(cells)
+	local width = 3 -- a separator needs at least 3 dashes
+	local trimmed = {}
+	for r, cell in ipairs(cells) do
+		trimmed[r] = vim.trim(cell)
+		if r ~= 2 then
+			width = math.max(width, vim.fn.strdisplaywidth(trimmed[r]))
+		end
+	end
+	local out = {}
+	for r, cell in ipairs(trimmed) do
+		if r == 2 then
+			out[r] = " " .. string.rep("-", width) .. " "
+		else
+			out[r] = " " .. cell .. string.rep(" ", width - vim.fn.strdisplaywidth(cell)) .. " "
+		end
+	end
+	return out
+end
+
+--- Bordered table lines from column-major cells of equal height.
+--- @param columns string[][]
+--- @return string[]
+function M.render_columns(columns)
+	local lines = {}
+	for r = 1, #columns[1] do
+		local row = { "" } -- empty outer extras yield the border pipes
+		for c, col in ipairs(columns) do
+			row[c + 1] = col[r]
+		end
+		row[#row + 1] = ""
+		lines[r] = M.join_row(row)
+	end
+	return lines
+end
+
 --- Pluck a range of inner columns from already-split rows into a column-major 2d list.
 --- `result[i]` is the i-th plucked column: its cell for every input row (header,
 --- separator, body). Serialization to/from a register lives in the `registers` module.

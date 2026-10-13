@@ -42,16 +42,16 @@ end
 --- @param lines string[]
 --- @return string[]
 function M.to_markdown(lines)
-	local rows, widths = {}, {}
+	local rows, ncols = {}, 0
 	for _, line in ipairs(lines) do
 		if vim.trim(line) ~= "" then
 			local cells = vim.split(line, "\t", { plain = true })
 			for c, cell in ipairs(cells) do
 				-- NOTE: a `\` before `|` in TSV becomes `\\|`, which split_row reads as an escaped
 				-- backslash plus a delimiter; ignored as in parser.split_row.
-				cells[c] = (vim.trim(cell):gsub("|", "\\|"))
-				widths[c] = math.max(widths[c] or 3, vim.fn.strdisplaywidth(cells[c]))
+				cells[c] = (cell:gsub("|", "\\|"))
 			end
+			ncols = math.max(ncols, #cells)
 			table.insert(rows, cells)
 		end
 	end
@@ -59,23 +59,15 @@ function M.to_markdown(lines)
 		return {}
 	end
 
-	local function render(cells)
-		local padded = {}
-		for c, width in ipairs(widths) do
-			local cell = cells[c] or ""
-			padded[c] = cell .. string.rep(" ", width - vim.fn.strdisplaywidth(cell))
+	local columns = {}
+	for c = 1, ncols do
+		local col = { rows[1][c] or "", "" } -- "" is the separator slot
+		for r = 2, #rows do
+			col[r + 1] = rows[r][c] or ""
 		end
-		return "| " .. table.concat(padded, " | ") .. " |"
+		columns[c] = TableParser.align_column(col)
 	end
-
-	local out = { render(rows[1]) }
-	out[2] = render(vim.tbl_map(function(width)
-		return string.rep("-", width)
-	end, widths))
-	for r = 2, #rows do
-		out[r + 1] = render(rows[r])
-	end
-	return out
+	return TableParser.render_columns(columns)
 end
 
 --- Markdown if the first non-blank line is a table row, TSV otherwise.

@@ -60,12 +60,24 @@ describe("edit_table.add_column", function()
 		set_buf({ "| A |", "| - |", "| 1 |", "| 2 |" })
 		-- one column, only the header cell provided
 		ET.add_column({ table_pos = { line_start = 1, line_end = 4 }, column_idx = 2, columns = { { " X " } } })
-		-- MIN_COL_WIDTH is 5, so " X " widens to a 5-char cell
+		-- columns are at least 3 wide (the separator's minimum)
 		assert.same({
 			"| A | X   |",
 			"| - | --- |",
 			"| 1 |     |",
 			"| 2 |     |",
+		}, get_buf())
+	end)
+end)
+
+describe("edit_table.add_column multibyte", function()
+	it("aligns by display width, not bytes", function()
+		set_buf({ "| A |", "| - |", "| 1 |" })
+		ET.add_column({ table_pos = { line_start = 1, line_end = 3 }, column_idx = 2, columns = { { "Ünï", "", "日本" } } })
+		assert.same({
+			"| A | Ünï  |",
+			"| - | ---- |",
+			"| 1 | 日本 |",
 		}, get_buf())
 	end)
 end)

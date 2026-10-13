@@ -3,11 +3,9 @@ local CreateTable = require("markdown-table.create-table")
 
 local M = {}
 
-local MIN_COL_WIDTH = 5
-
---- Normalize columns (column-major) to the target table's height and a uniform
---- per-column width: missing body cells are padded blank, overflow ignored, row 2
---- becomes a separator. Keeps a pasted or generated column aligned with the table.
+--- Normalize columns (column-major) to the target table's height and align them:
+--- missing body cells are padded blank, overflow ignored. Keeps a pasted or generated
+--- column aligned with the table.
 --- @param columns string[][]
 --- @param nrows integer target table line count (header + separator + body)
 --- @return string[][]
@@ -15,21 +13,10 @@ local function normalize_columns(columns, nrows)
 	local out = {}
 	for i, col in ipairs(columns) do
 		local sized = {}
-		for r = 1, nrows do -- height: exactly nrows cells
+		for r = 1, nrows do
 			sized[r] = col[r] or ""
 		end
-		local width = MIN_COL_WIDTH -- width: uniform, driven by the widest cell
-		for r = 1, nrows do
-			width = math.max(width, #sized[r]) -- TODO byte length; wrong for multibyte cells
-		end
-		for r = 1, nrows do
-			if r == 2 then -- header separator
-				sized[r] = " " .. string.rep("-", width - 2) .. " "
-			else
-				sized[r] = sized[r] .. string.rep(" ", width - #sized[r])
-			end
-		end
-		out[i] = sized
+		out[i] = TableParser.align_column(sized)
 	end
 	return out
 end
@@ -51,6 +38,11 @@ end
 
 local visual_modes = { v = true, V = true, ["\22"] = true } -- \22 is <C-v>, blockwise
 
+--- @return boolean
+function M.is_visual_mode()
+	return visual_modes[vim.fn.mode()] == true
+end
+
 --- get start-stop cursors position in visual mode, or current cursor in other modes
 --- @return SelectionCursorsPosition
 function M.get_start_stop_cursors_pos()
@@ -58,7 +50,7 @@ function M.get_start_stop_cursors_pos()
 	local cursors = {
 		current = vim.fn.getpos("."),
 	}
-	if visual_modes[vim.fn.mode()] then
+	if M.is_visual_mode() then
 		cursors.other_end = vim.fn.getpos("v")
 	end
 	return cursors
@@ -119,23 +111,25 @@ function M.find_closest_markdown_table(args)
 	-- whitespace-only cells make the markdown grammar split one visual table into several
 	-- pipe_table nodes, so grow the range over the whole contiguous block of table rows
 	if best then
-		while best.line_start > 0 do
-			local prev_line = read_buffer_line(0, best.line_start - 1)
-			if not TableParser.is_table_row(prev_line) then
-				break
-			end
-			best.line_start = best.line_start - 1
-		end
-		local nlines = vim.api.nvim_buf_line_count(0)
-		while best.line_end < nlines do
-			local next_line = read_buffer_line(0, best.line_end + 1)
-			if not TableParser.is_table_row(next_line) then
-				break
-			end
-			best.line_end = best.line_end + 1
-		end
+		best.line_start, best.line_end = M.grow_range(best.line_start, best.line_end, TableParser.is_table_row)
 	end
 	return best
+end
+
+--- Grow a 1-based inclusive line range while the adjacent lines satisfy `pred`
+--- @param first integer
+--- @param last integer
+--- @param pred fun(line: string): boolean
+--- @return integer, integer
+function M.grow_range(first, last, pred)
+	while first > 1 and pred(read_buffer_line(0, first - 1)) do
+		first = first - 1
+	end
+	local nlines = vim.api.nvim_buf_line_count(0)
+	while last < nlines and pred(read_buffer_line(0, last + 1)) do
+		last = last + 1
+	end
+	return first, last
 end
 
 ---@class GetColumnUnderPosArgs
@@ -150,9 +144,8 @@ end
 ---@return integer index of the current column, 1-based. 0 if no column is under a cursor
 function M.get_column_under_pos(args)
 	local pos = args.cursor_pos
-	local row = pos[2] - 1 -- 0-based
 	local col = pos[3] -- 1-based byte column of the cursor
-	local line = vim.api.nvim_buf_get_lines(0, row, row + 1, false)[1]
+	local line = read_buffer_line(0, pos[2])
 	if line == nil then
 		return 0
 	end
@@ -162,20 +155,7 @@ function M.get_column_under_pos(args)
 
 	-- count unescaped '|' at or before the cursor; a pipe belongs to the cell on its right,
 	-- so the leading pipe yields column 1
-	local count = 0
-	local i = 1
-	while i <= col do
-		local c = line:sub(i, i)
-		if c == "\\" then
-			i = i + 2 -- skip the escaped char
-		else
-			if c == "|" then
-				count = count + 1
-			end
-			i = i + 1
-		end
-	end
-	return count
+	return #TableParser.split_row(line:sub(1, col)) - 1
 end
 
 ---@class AddColumnArgs

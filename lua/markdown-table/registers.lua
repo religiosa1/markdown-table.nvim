@@ -21,14 +21,11 @@ local function resolve_registers(spec)
 	end
 	-- boolean true
 	local regs = { '"' }
-	local clip = {}
-	for _, v in ipairs(vim.split(vim.o.clipboard or "", ",", { trimempty = true })) do
-		clip[v] = true
-	end
-	if clip.unnamedplus then
+	local clip = vim.opt.clipboard:get()
+	if vim.tbl_contains(clip, "unnamedplus") then
 		table.insert(regs, "+")
 	end
-	if clip.unnamed then
+	if vim.tbl_contains(clip, "unnamed") then
 		table.insert(regs, "*")
 	end
 	return regs
@@ -86,15 +83,13 @@ end
 --- @param reg RegisterParam
 --- @return string[][] columns column-major cells
 function M.cols_from_reg(reg)
-	local lines = {}
 	for _, name in ipairs(resolve_registers(reg)) do
 		local content = vim.fn.getreg(name, 1, true)
 		if content and not (#content == 0 or (#content == 1 and content[1] == "")) then
-			lines = content
-			break
+			return lines_to_columns(content)
 		end
 	end
-	return lines_to_columns(lines)
+	return {}
 end
 
 return M
