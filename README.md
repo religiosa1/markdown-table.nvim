@@ -217,6 +217,13 @@ All configuration values are optional and provided here only for the reference
 		default_n_lines = 0,
 		max_width = 30,
 		max_height = 50,
+		-- header text of generated columns: a format string (%d is the column
+		-- index, omit it for no index) or a function `fun(idx): string`
+		header = "Header%d",
+	},
+	-- column added by paste_column without from_reg
+	new_column = {
+		header = "Header", -- same format as new_table.header
 	},
 }
 ```

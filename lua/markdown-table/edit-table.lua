@@ -197,7 +197,10 @@ function M.add_column(args)
 
 	local columns = args.columns
 	if not columns or #columns == 0 then
-		columns = { CreateTable.create_column(args.config, nrows) }
+		-- actual insert position, as clamped below (column_idx may be math.huge)
+		local ncols = #TableParser.split_row(lines[1]) - 2
+		local idx = math.max(1, math.min(ncols + 1, args.column_idx))
+		columns = { CreateTable.create_column(args.config, nrows, idx) }
 	end
 	columns = normalize_columns(columns, nrows)
 

@@ -5,9 +5,11 @@ local M = {}
 ---@field default_n_lines? integer Default amount of lines to use, if no amount is specified in the input
 ---@field max_width? integer Cap on the amount of columns to use
 ---@field max_height? integer Prompt to show in table size input
+---@field header? HeaderFormat Header text: format string (`%d` is the column index) or `fun(idx): string`
 
 ---@class MarkdownTablePluginConfig
 ---@field new_table? CreateTableConfig
+---@field new_column? CreateColumnConfig
 
 ---@type MarkdownTablePluginConfig
 M.defaults = {
@@ -16,6 +18,10 @@ M.defaults = {
 		default_n_lines = 0,
 		max_width = 30,
 		max_height = 50,
+		header = "Header%d",
+	},
+	new_column = {
+		header = "Header",
 	},
 }
 

@@ -1,19 +1,15 @@
 local M = {}
 
---- generate a markdown table row of repeated string of a given size
---- @param value string value to repeat
---- @param size integer number of columns
---- @return string
-local function markdown_table_row_of(value, size)
-	local header_delimiter = "| "
-	for i = 1, size do
-		header_delimiter = header_delimiter .. value
-		if i ~= size then
-			header_delimiter = header_delimiter .. " | "
-		end
+---@alias HeaderFormat string | fun(idx: integer): string format string (`%d` is the column index) or a function
+
+---@param header HeaderFormat
+---@param idx integer column index
+---@return string
+local function format_header(header, idx)
+	if type(header) == "function" then
+		return header(idx)
 	end
-	header_delimiter = header_delimiter .. " |"
-	return header_delimiter
+	return string.format(header, idx)
 end
 
 ---parses input string into two ints for table creation
@@ -41,9 +37,7 @@ end
 function M.create_table_lines(x, y, opts)
 	opts = opts or {}
 	x = x or 1
-	local make_header_cont = function(v)
-		return string.format("Header %d", v)
-	end
+	local header = opts.header or "Header%d"
 
 	if x <= 0 then
 		return {}
@@ -54,16 +48,17 @@ function M.create_table_lines(x, y, opts)
 	end
 
 	local lines = {}
-	-- header first
-	local headers = {}
+	-- header first; widths vary per column (Header9 vs Header10, custom formats)
+	local headers, delims, blanks = {}, {}, {}
 	for i = 1, x do
-		table.insert(headers, make_header_cont(i))
+		local cont = format_header(header, i)
+		local width = math.max(3, #cont) -- separator needs at least 3 dashes
+		headers[i] = cont .. string.rep(" ", width - #cont)
+		delims[i] = string.rep("-", width)
+		blanks[i] = string.rep(" ", width)
 	end
 	table.insert(lines, "| " .. table.concat(headers, " | ") .. " |")
-
-	local header_cont_size = #headers[1]
-	local delim_cont = string.rep("-", header_cont_size)
-	table.insert(lines, markdown_table_row_of(delim_cont, x))
+	table.insert(lines, "| " .. table.concat(delims, " | ") .. " |")
 
 	if y == nil then
 		y = opts.default_n_lines
@@ -78,25 +73,26 @@ function M.create_table_lines(x, y, opts)
 	end
 
 	-- the main lines now
-	local row_cont = string.rep(" ", header_cont_size)
+	local row = "| " .. table.concat(blanks, " | ") .. " |"
 	for _ = 1, y do
-		table.insert(lines, markdown_table_row_of(row_cont, x))
+		table.insert(lines, row)
 	end
 	return lines
 end
 
 ---@class CreateColumnConfig
----@field header? string header text for a generated column, default "Header"
+---@field header? HeaderFormat header of a generated column, default "Header"
 
 --- Generate a single blank column (column-major cells) for a table of `nrows` lines.
 --- Only carries the header text and blanks; width and separator are finalized by the
 --- caller's column normalization.
 ---@param config? CreateColumnConfig
 ---@param nrows integer number of lines in the target table (header + separator + body)
+---@param idx integer column index of the new column, for the header format
 ---@return string[] column-major cells
-function M.create_column(config, nrows)
+function M.create_column(config, nrows, idx)
 	config = config or {}
-	local header = config.header or "Header"
+	local header = format_header(config.header or "Header", idx)
 	local col = { " " .. header .. " " }
 	for r = 2, nrows do
 		col[r] = ""

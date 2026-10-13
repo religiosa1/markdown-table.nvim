@@ -11,11 +11,37 @@ end
 
 describe("create_table.create_column", function()
 	it("makes a header cell plus blanks for nrows", function()
-		assert.same({ " Header ", "", "" }, CreateTable.create_column(nil, 3))
+		assert.same({ " Header ", "", "" }, CreateTable.create_column(nil, 3, 2))
 	end)
 
 	it("honors a custom header", function()
-		assert.same({ " Foo ", "", "", "" }, CreateTable.create_column({ header = "Foo" }, 4))
+		assert.same({ " Foo ", "", "", "" }, CreateTable.create_column({ header = "Foo" }, 4, 1))
+		assert.same({ " Col 3 " }, CreateTable.create_column({ header = "Col %d" }, 1, 3))
+		assert.same({ " c3 " }, CreateTable.create_column({
+			header = function(i)
+				return "c" .. i
+			end,
+		}, 1, 3))
+	end)
+end)
+
+describe("create_table.create_table_lines", function()
+	it("aligns columns of different header widths", function()
+		local header = function(i)
+			return string.rep("x", i + 3)
+		end
+		assert.same({
+			"| xxxx | xxxxx |",
+			"| ---- | ----- |",
+			"|      |       |",
+		}, CreateTable.create_table_lines(2, 1, { header = header }))
+	end)
+
+	it("honors a custom header, padding to a valid separator", function()
+		assert.same({
+			"| A   | A   |",
+			"| --- | --- |",
+		}, CreateTable.create_table_lines(2, 0, { header = "A" }))
 	end)
 end)
 

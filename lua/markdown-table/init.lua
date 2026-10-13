@@ -57,6 +57,7 @@ function M.paste_column(args)
 		table_pos = table_pos,
 		column_idx = column_idx,
 		columns = columns,
+		config = require("markdown-table.config").options.new_column,
 	})
 end
 
