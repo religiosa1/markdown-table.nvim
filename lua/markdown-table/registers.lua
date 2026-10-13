@@ -69,7 +69,13 @@ end
 --- @param columns string[][] column-major cells (as delete_column returns)
 --- @param reg RegisterParam
 function M.cols_to_reg(columns, reg)
-	local lines = columns_to_lines(columns)
+	M.lines_to_reg(columns_to_lines(columns), reg)
+end
+
+--- Store plain lines into register(s), linewise.
+--- @param lines string[]
+--- @param reg RegisterParam
+function M.lines_to_reg(lines, reg)
 	for _, name in ipairs(resolve_registers(reg)) do
 		vim.fn.setreg(name, lines, "l")
 	end

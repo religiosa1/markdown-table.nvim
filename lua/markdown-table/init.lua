@@ -2,6 +2,13 @@ local EditTable = require("markdown-table.edit-table")
 
 local M = {}
 
+---Leave visual mode like native `y`/`d` do; `gv` reselects. Call after reading the selection.
+local function exit_visual()
+	if vim.fn.mode():match("^[vV\22]") then
+		vim.cmd("normal! \27")
+	end
+end
+
 function M.create_table()
 	local opts = require("markdown-table.config").options
 	local CreateTable = require("markdown-table.create-table")
@@ -70,6 +77,7 @@ end
 function M.delete_column(args)
 	args = args or {}
 	local cursors = EditTable.get_start_stop_cursors_pos()
+	exit_visual()
 
 	local table_pos = EditTable.find_closest_markdown_table({
 		pos = cursors.current,
@@ -97,6 +105,90 @@ function M.delete_column(args)
 	})
 	if args.to_reg then
 		require("markdown-table.registers").cols_to_reg(deleted, args.to_reg)
+	end
+end
+
+---@class YankConvertedArgs: ConvertOpts
+---@field to_reg? RegisterParam register(s) to put the result into, default `true` (route by 'clipboard')
+---@field no_notify? boolean skip the yank notification (see `yank.message` config)
+
+---Line range to convert: the visual selection, else the markdown table under the
+---cursor, else the block of tab-containing lines around it.
+---@return integer?, integer? 1-based start and end lines (inclusive)
+local function get_convert_range()
+	local cursors = EditTable.get_start_stop_cursors_pos()
+	local cur = cursors.current[2]
+	if cursors.other_end then
+		local other = cursors.other_end[2]
+		return math.min(cur, other), math.max(cur, other)
+	end
+	local table_pos = EditTable.find_closest_markdown_table({ pos = cursors.current, search_mode = "exact" })
+	if table_pos then
+		return table_pos.line_start, table_pos.line_end
+	end
+
+	local function is_tsv(lnum)
+		return vim.fn.getline(lnum):find("\t", 1, true) ~= nil
+	end
+	if not is_tsv(cur) then
+		return nil
+	end
+	local first, last = cur, cur
+	while is_tsv(first - 1) do
+		first = first - 1
+	end
+	while is_tsv(last + 1) do
+		last = last + 1
+	end
+	return first, last
+end
+
+---Convert lines between a markdown table and TSV
+---@param lines string[]
+---@param args? ConvertOpts
+---@return string[]
+function M.convert_lines(lines, args)
+	return require("markdown-table.tsv").convert(lines, args)
+end
+
+---Convert the table under the cursor/selection between markdown and TSV, in place
+---@param args? ConvertOpts
+function M.convert_table(args)
+	local first, last = get_convert_range()
+	exit_visual()
+	if not first then
+		vim.notify("No markdown table or TSV found")
+		return
+	end
+	local lines = vim.api.nvim_buf_get_lines(0, first - 1, last, false)
+	vim.api.nvim_buf_set_lines(0, first - 1, last, false, M.convert_lines(lines, args))
+end
+
+---Yank the converted (markdown <-> TSV) table under the cursor/selection into a register
+---@param args? YankConvertedArgs
+function M.yank_converted(args)
+	args = args or {}
+	local first, last = get_convert_range()
+	exit_visual()
+	if not first then
+		vim.notify("No markdown table or TSV found")
+		return
+	end
+	local lines = vim.api.nvim_buf_get_lines(0, first - 1, last, false)
+	local direction = require("markdown-table.tsv").resolve_direction(lines, args.direction)
+	local converted = M.convert_lines(lines, { direction = direction, skip_header = args.skip_header })
+	require("markdown-table.registers").lines_to_reg(converted, args.to_reg or true)
+
+	if args.no_notify then
+		return
+	end
+	local message = require("markdown-table.config").options.yank.message({
+		count = #converted,
+		direction = direction,
+		skip_header = args.skip_header == true,
+	})
+	if message then
+		vim.notify(message)
 	end
 end
 

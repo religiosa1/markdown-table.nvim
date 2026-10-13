@@ -7,9 +7,18 @@ local M = {}
 ---@field max_height? integer Prompt to show in table size input
 ---@field header? HeaderFormat Header text: format string (`%d` is the column index) or `fun(idx): string`
 
+---@class YankInfo what yank_converted put into the register
+---@field count integer number of yanked lines
+---@field direction "to_tsv" | "to_markdown"
+---@field skip_header boolean header row was dropped (TSV only)
+
+---@class YankConfig
+---@field message? fun(info: YankInfo): string? notification text after a yank; nil skips it
+
 ---@class MarkdownTablePluginConfig
 ---@field new_table? CreateTableConfig
 ---@field new_column? CreateColumnConfig
+---@field yank? YankConfig
 
 ---@type MarkdownTablePluginConfig
 M.defaults = {
@@ -22,6 +31,15 @@ M.defaults = {
 	},
 	new_column = {
 		header = "Header",
+	},
+	yank = {
+		message = function(info)
+			if info.direction == "to_markdown" then
+				return string.format("Yanked %d markdown table lines", info.count)
+			end
+			local header = info.skip_header and "without" or "with"
+			return string.format("Yanked %d TSV lines %s header", info.count, header)
+		end,
 	},
 }
 

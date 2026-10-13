@@ -8,9 +8,11 @@ It provides actions to:
 - Paste columns from a register (auto-expanded to the target table's size)
 - Add blank columns
 - Generate a table stub of provided width/height
+- Convert a table to TSV and back, in place or into a register, for ease of
+  pasting tables from a webpage or a DB export, or pasting them into a spreadsheet
 
-It only provides actions for the tables editing, nothing else. All actions can
-be undone.
+It only provides actions for the tables editing and TSV import/export, nothing
+else. All actions can be undone.
 
 For the full smorgasbord of various markdown editing actions (including table
 edits) look at [markdown-plus](https://github.com/YousefHadder/markdown-plus.nvim).
@@ -76,6 +78,34 @@ Both `delete_column`'s `to_reg` and `paste_column`'s `from_reg` accept:
   whether or not you have `clipboard=unnamedplus`.
 
 Omitting `to_reg` deletes without cutting; omitting `from_reg` adds a blank column.
+
+### TSV
+
+Copying a table from a webpage, a spreadsheet or a DB client usually gives you
+tab-separated values. `convert_table` turns them into a markdown table in place
+(and a markdown table back into TSV); `yank_converted` puts the conversion into a
+register without touching the buffer.
+
+The first TSV row becomes the table header. Markdown to TSV keeps the header and
+drops the separator row (and its alignment). `|` in cells is escaped/unescaped.
+No TSV quoting is supported: cells are split on tabs as is.
+
+Both act on the visual selection, or, without one, on the markdown table under
+the cursor, or the block of lines containing tabs around it.
+
+`yank_converted` reports how many lines it yanked; `no_notify = true` silences
+it. The message is configurable with `yank.message` (see Configuration).
+
+`skip_header = true` drops the header row when converting to TSV, e.g. to append
+rows to an existing spreadsheet.
+
+Direction is detected from the content (a markdown table if the first line
+starts with `|`, TSV otherwise), or forced with `direction = "to_tsv"` /
+`"to_markdown"`. `yank_converted`'s `to_reg` takes a register name, a list of
+names, or `true` (the default, routed by `'clipboard'`) like `delete_column`'s.
+
+For scripting, `convert_lines(lines, { direction = ..., skip_header = ... })`
+returns the converted lines.
 
 ## Installation
 
@@ -145,6 +175,33 @@ Omitting `to_reg` deletes without cutting; omitting `from_reg` adds a blank colu
       mode = { "n" },
       desc = "Paste a markdown table column after",
     },
+    {
+      "<leader>jty",
+      function()
+        require("markdown-table").yank_converted { direction = "to_tsv" }
+      end,
+      mode = { "n", "x" },
+      desc = "Yank TSV representation",
+    },
+    {
+      "<leader>jtY",
+      function()
+        require("markdown-table").yank_converted {
+          direction = "to_tsv",
+          skip_header = true,
+        }
+      end,
+      mode = { "n", "x" },
+      desc = "Yank TSV without header",
+    },
+    {
+      "<leader>jtc",
+      function()
+        require("markdown-table").convert_table()
+      end,
+      mode = { "n", "x" },
+      desc = "Toggle between TSV and a markdown table",
+    },
   },
 }
 ```
@@ -201,6 +258,24 @@ vim.api.nvim_create_autocmd("FileType", {
       buf = buf_id,
       desc = "Paste a markdown table column after",
     })
+    vim.keymap.set({ "n", "x" }, "<leader>jty", function()
+      MdTable.yank_converted { direction = "to_tsv" }
+    end, {
+      buf = buf_id,
+      desc = "Yank TSV representation",
+    })
+    vim.keymap.set({ "n", "x" }, "<leader>jtY", function()
+      MdTable.yank_converted { direction = "to_tsv", skip_header = true }
+    end, {
+      buf = buf_id,
+      desc = "Yank TSV without header",
+    })
+    vim.keymap.set({ "n", "x" }, "<leader>jtc", function()
+      MdTable.convert_table()
+    end, {
+      buf = buf_id,
+      desc = "Toggle between TSV and a markdown table",
+    })
   end
 })
 
@@ -224,6 +299,17 @@ All configuration values are optional and provided here only for the reference
 	-- column added by paste_column without from_reg
 	new_column = {
 		header = "Header", -- same format as new_table.header
+	},
+	yank = {
+		-- notification after yank_converted; return nil to skip it.
+		-- info: { count, direction = "to_tsv" | "to_markdown", skip_header }
+		message = function(info)
+			if info.direction == "to_markdown" then
+				return string.format("Yanked %d markdown table lines", info.count)
+			end
+			local header = info.skip_header and "without" or "with"
+			return string.format("Yanked %d TSV lines %s header", info.count, header)
+		end,
 	},
 }
 ```
