@@ -58,7 +58,11 @@ function M.paste_column(args)
 	end
 	local columns
 	if args.from_reg then
-		columns = require("markdown-table.registers").cols_from_reg(args.from_reg)
+		local Registers = require("markdown-table.registers")
+		columns = Registers.add_missing_separator(
+			Registers.cols_from_reg(args.from_reg),
+			require("markdown-table.config").options.paste.missing_separator
+		)
 	end
 	EditTable.add_column({
 		table_pos = table_pos,

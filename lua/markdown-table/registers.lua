@@ -20,7 +20,9 @@ local function resolve_registers(spec)
 		return spec
 	end
 	-- boolean true
-	local regs = { '"' }
+	-- clipboard regs first: getreg('"') reads vim's internal register, not the
+	-- clipboard, so a stale yank there would shadow an external copy on read
+	local regs = {}
 	local clip = vim.opt.clipboard:get()
 	if vim.tbl_contains(clip, "unnamedplus") then
 		table.insert(regs, "+")
@@ -28,6 +30,7 @@ local function resolve_registers(spec)
 	if vim.tbl_contains(clip, "unnamed") then
 		table.insert(regs, "*")
 	end
+	table.insert(regs, '"')
 	return regs
 end
 
@@ -90,6 +93,41 @@ function M.cols_from_reg(reg)
 		end
 	end
 	return {}
+end
+
+--- How to treat pasted content that has no header separator on its 2nd row:
+--- "header" - the first line is the header, a separator is inserted after it;
+--- "body" - every line is body, a blank header and a separator are prepended.
+---@alias MissingSeparatorMode "header" | "body"
+
+--- @param cell string?
+--- @return boolean
+local function is_separator_cell(cell)
+	return cell ~= nil and cell:match("^%s*:?%-+:?%s*$") ~= nil
+end
+
+--- Add a header separator to pasted columns lacking one (e.g. copied from a doc),
+--- so the table's separator row doesn't overwrite a real cell.
+--- @param columns string[][] column-major cells, modified in place
+--- @param mode MissingSeparatorMode
+--- @return string[][] columns
+function M.add_missing_separator(columns, mode)
+	local has_separator = #columns > 0
+		and vim.iter(columns):all(function(col)
+			return is_separator_cell(col[2])
+		end)
+	if has_separator then
+		return columns
+	end
+	for _, col in ipairs(columns) do
+		if mode == "body" then
+			table.insert(col, 1, "")
+			table.insert(col, 2, "")
+		else
+			table.insert(col, 2, "")
+		end
+	end
+	return columns
 end
 
 return M

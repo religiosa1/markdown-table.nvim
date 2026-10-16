@@ -15,9 +15,13 @@ local M = {}
 ---@class YankConfig
 ---@field message? fun(info: YankInfo): string? notification text after a yank; nil skips it
 
+---@class PasteConfig
+---@field missing_separator? MissingSeparatorMode pasted content without a header separator: first line is the "header", or it's all "body"
+
 ---@class MarkdownTablePluginConfig
 ---@field new_table? CreateTableConfig
 ---@field new_column? CreateColumnConfig
+---@field paste? PasteConfig
 ---@field yank? YankConfig
 
 ---@type MarkdownTablePluginConfig
@@ -31,6 +35,9 @@ M.defaults = {
 	},
 	new_column = {
 		header = "Header",
+	},
+	paste = {
+		missing_separator = "header",
 	},
 	yank = {
 		message = function(info)
