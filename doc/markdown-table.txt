@@ -1,5 +1,5 @@
 *markdown-table.txt*
-                          For Neovim >= 0.10.0    Last change: 2026 October 13
+                          For Neovim >= 0.10.0    Last change: 2026 October 16
 
 ==============================================================================
 Table of Contents                           *markdown-table-table-of-contents*
@@ -90,13 +90,20 @@ Both `delete_column`’s `to_reg` and `paste_column`’s `from_reg` accept:
 
 - a register name (`"+"`, `'"'`, `"z"`, …)
 - a list of register names (`{ '"', "+" }`) — `delete_column` writes to all of them
-- `true` — route by `'clipboard'`: always the unnamed `"`, plus `+` when
-    `unnamedplus` is set and `*` when `unnamed` is set. This is the recommended
-    value: a cut then reads back from wherever your `p` pastes from, so it works
-    whether or not you have `clipboard=unnamedplus`.
+- `true` — route by `'clipboard'`: `+` when `unnamedplus` is set, `*` when
+    `unnamed` is set, and always the unnamed `"`. Pasting reads the first non-empty
+    one in that order. This is the recommended value: a cut then reads back from
+    wherever your `p` pastes from, so it works whether or not you have
+    `clipboard=unnamedplus`.
 
 Omitting `to_reg` deletes without cutting; omitting `from_reg` adds a blank
 column.
+
+Pasted content without a header separator on its second line (e.g. a column
+copied from a doc or a spreadsheet) gets one added, so no cell is lost under
+the table’s separator row. `paste.missing_separator` picks what the first
+line is: `"header"` (default) makes it the column’s header, `"body"` adds a
+blank header and pastes every line into the body.
 
 
 TSV ~
@@ -323,6 +330,12 @@ All configuration values are optional and provided here only for the reference
         -- column added by paste_column without from_reg
         new_column = {
             header = "Header", -- same format as new_table.header
+        },
+        paste = {
+            -- pasted content without a header separator (e.g. from google docs):
+        -- "header" (first line is the header) or
+        -- "body" (blank header, all lines go into the body)
+            missing_separator = "header",
         },
         yank = {
             -- notification after yank_converted; return nil to skip it.
