@@ -93,7 +93,9 @@ tab-separated values. `convert_table` turns them into a markdown table in place
 (and a markdown table back into TSV); `yank_converted` puts the conversion into a
 register without touching the buffer.
 
-The first TSV row becomes the table header. Markdown to TSV keeps the header and
+The first TSV row becomes the table header, unless the TSV sits inside a table's
+body or right below it: then `convert_table` (with auto direction) turns it into
+body rows only, as rows pasted into that table. Markdown to TSV keeps the header and
 drops the separator row (and its alignment). `|` in cells is escaped/unescaped.
 No TSV quoting is supported: cells are split on tabs as is.
 

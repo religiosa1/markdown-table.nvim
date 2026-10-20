@@ -1,4 +1,5 @@
 local EditTable = require("markdown-table.edit-table")
+local TableParser = require("markdown-table.parser")
 
 local M = {}
 
@@ -126,18 +127,20 @@ local function get_convert_range()
 		local other = cursors.other_end[2]
 		return math.min(cur, other), math.max(cur, other)
 	end
+	-- checked before the table: treesitter counts pipe-less lines right after a table
+	-- (GFM continuation) as its rows, so TSV pasted there would convert the whole table
+	local function is_tsv(line)
+		return not TableParser.is_table_row(line) and line:find("\t", 1, true) ~= nil
+	end
+	if is_tsv(vim.fn.getline(cur)) then
+		return EditTable.grow_range(cur, cur, is_tsv)
+	end
+
 	local table_pos = EditTable.find_closest_markdown_table({ pos = cursors.current, search_mode = "exact" })
 	if table_pos then
 		return table_pos.line_start, table_pos.line_end
 	end
-
-	local function is_tsv(line)
-		return line:find("\t", 1, true) ~= nil
-	end
-	if not is_tsv(vim.fn.getline(cur)) then
-		return nil
-	end
-	return EditTable.grow_range(cur, cur, is_tsv)
+	return nil
 end
 
 ---Leave visual mode and read the lines to convert (see get_convert_range)
@@ -166,6 +169,17 @@ function M.convert_table(args)
 	local lines, first, last = read_convert_lines()
 	if not lines then
 		return
+	end
+	args = args or {}
+	local Tsv = require("markdown-table.tsv")
+	-- TSV pasted into a table's body or right below it is more rows for that table
+	if
+		(args.direction == nil or args.direction == "auto")
+		and first > 1
+		and Tsv.resolve_direction(lines) == "to_markdown"
+		and TableParser.is_table_row(vim.fn.getline(first - 1))
+	then
+		args = vim.tbl_extend("force", args, { skip_header = true })
 	end
 	vim.api.nvim_buf_set_lines(0, first - 1, last, false, M.convert_lines(lines, args))
 end

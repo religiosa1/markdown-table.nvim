@@ -35,6 +35,11 @@ describe("tsv.convert", function()
 		assert.same({ tsv[2], tsv[3] }, Tsv.convert(markdown, { skip_header = true }))
 	end)
 
+	it("tsv -> markdown: optionally emits body rows only", function()
+		assert.same({ "| a   | bb  |", "| 1   |     |" }, Tsv.convert({ "a\tbb", "1" }, { skip_header = true }))
+		assert.same({}, Tsv.convert({ "" }, { direction = "to_markdown", skip_header = true }))
+	end)
+
 	it("round-trips tsv", function()
 		assert.same(tsv, Tsv.convert(Tsv.convert(tsv)))
 	end)
@@ -61,6 +66,15 @@ describe("convert_table / yank_converted", function()
 			"",
 			"outro",
 		}, vim.api.nvim_buf_get_lines(0, 0, -1, false))
+	end)
+
+	it("converts TSV inside or right below a table to body rows", function()
+		vim.api.nvim_buf_set_lines(0, 0, -1, false, { "| h   |", "| --- |", "a\tb", "| x   |", "c\td" })
+		vim.fn.cursor(3, 1)
+		MdTable.convert_table()
+		vim.fn.cursor(5, 1)
+		MdTable.convert_table()
+		assert.same({ "| h   |", "| --- |", "| a   | b   |", "| x   |", "| c   | d   |" }, vim.api.nvim_buf_get_lines(0, 0, -1, false))
 	end)
 
 	it("yanks the conversion without touching the buffer", function()
